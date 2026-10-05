@@ -1,4 +1,13 @@
 {
+  "scopedRegistries": [
+    {
+      "name": "package.openupm.com",
+      "url": "https://package.openupm.com",
+      "scopes": [
+        "com.neuecc.messagepack"
+      ]
+    }
+  ],
   "dependencies": {
     "com.unity.feature.development": "1.0.2",
     "com.unity.ide.rider": "3.0.38",

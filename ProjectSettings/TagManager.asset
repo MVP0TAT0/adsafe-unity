@@ -4,7 +4,10 @@
 TagManager:
   serializedVersion: 3
   tags:
-  - Anchor
+  - Road
+  - Vehicle
+  - Pedestrian
+  - OvertakingVehicle
   layers:
   - Default
   - TransparentFX

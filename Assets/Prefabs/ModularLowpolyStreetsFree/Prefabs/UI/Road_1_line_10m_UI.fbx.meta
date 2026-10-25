@@ -1,9 +1,14 @@
 fileFormatVersion: 2
-guid: 84802f86083f56544bd01956b42451b5
+guid: f3dc9d51d92f91842b23641704abd931
 ModelImporter:
   serializedVersion: 24600
   internalIDToNameTable: []
-  externalObjects: {}
+  externalObjects:
+  - first:
+      type: UnityEngine:Texture2D
+      assembly: UnityEngine.CoreModule
+      name: Road-1-line_AlbedoGloss-v2
+    second: {fileID: 2800000, guid: 14698d8205da83e4c88371541cef4eff, type: 3}
   materials:
     materialImportMode: 2
     materialName: 0

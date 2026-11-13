@@ -11,9 +11,9 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: d989861ef825b2e4fb3cbcd03f532909, type: 3}
   m_Name: ion.cesium.com
-  m_EditorClassIdentifier: CesiumForUnity::CesiumForUnity.CesiumIonServer
+  m_EditorClassIdentifier: 
   serverUrl: https://ion.cesium.com
   apiUrl: https://api.cesium.com
   oauth2ApplicationID: 381
-  defaultIonAccessTokenId: 59a84761-b9d4-4cc5-bdf6-882747a5e038
-  defaultIonAccessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJub25jZSI6ImF2QzBRRExPN0VTUnplSTAiLCJqdGkiOiI1OWE4NDc2MS1iOWQ0LTRjYzUtYmRmNi04ODI3NDdhNWUwMzgiLCJpZCI6NTQyMTAzLCJpc3MiOiJodHRwczovL2FwaS5jZXNpdW0uY29tIiwiYXVkIjoidW5kZWZpbmVkX2RlZmF1bHQiLCJpYXQiOjE3OTM3NDM4MzF9.aQ4U2ksB3oC_c2K4LuXCLDmyOTHGNpMrbRn_o58Ac3s
+  defaultIonAccessTokenId: 5f6050b6-fba0-4aaa-8f91-f63555b0fdcd
+  defaultIonAccessToken: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI1ZjYwNTBiNi1mYmEwLTRhYWEtOGY5MS1mNjM1NTViMGZkY2QiLCJpZCI6NDA5NTI2LCJzdWIiOiJ2cmxhYl9kZWkiLCJpc3MiOiJodHRwczovL2lvbi5jZXNpdW0uY29tIiwiYXVkIjoiQ2VzaXVtIChDcmVhdGVkIGJ5IENlc2l1bSBGb3IgVW5pdHkpIiwiaWF0IjoxNzc5MTc5NzA0fQ.GVjEqvpy3k3nE9ete4uzFy1CKngXOajd_rZ4xjiXvds

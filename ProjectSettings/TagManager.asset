@@ -8,6 +8,9 @@ TagManager:
   - Vehicle
   - Pedestrian
   - OvertakingVehicle
+  - Anchor
+  - WarningPedestrian
+  - EmergencyPedestrian
   layers:
   - Default
   - TransparentFX

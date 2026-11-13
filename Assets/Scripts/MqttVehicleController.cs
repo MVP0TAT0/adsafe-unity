@@ -16,7 +16,9 @@ public class MqttVehicleController : MonoBehaviour
     {
         public string topicIdentifier;
         public Transform vehicleTransform;
-        public LineRenderer intendedPathRenderer;
+        
+        // Linked to our new script instead of the raw LineRenderer
+        public ManeuverPathVisualizer pathVisualizer; 
 
         [HideInInspector] public Vector3 targetPosition;
         [HideInInspector] public Quaternion targetRotation;
@@ -28,8 +30,9 @@ public class MqttVehicleController : MonoBehaviour
     [Header("Vehicle Setup")]
     public List<VehicleMapping> vehicles = new List<VehicleMapping>();
     public float lerpSpeed = 12f;
-    
-    [Header("Overtake Path Generation")]
+
+    [Header("Procedural Overtake Path Settings")]
+    [Tooltip("Used if the dataset does not provide exact GPS trajectory points.")]
     public float laneWidth = 3.5f; 
     public float maneuverLength = 20f; 
 
@@ -45,9 +48,8 @@ public class MqttVehicleController : MonoBehaviour
     {
         foreach (var v in vehicles)
         {
-            // Capture initial Y height relative to the SimulationAnchor
             if (v.vehicleTransform != null) v.initialY = v.vehicleTransform.localPosition.y;
-            if (v.intendedPathRenderer != null) v.intendedPathRenderer.positionCount = 0;
+            if (v.pathVisualizer != null) v.pathVisualizer.ClearPath();
         }
 
         try
@@ -118,34 +120,74 @@ public class MqttVehicleController : MonoBehaviour
             BasicContainer basic = mcmData?.GetBasicContainer();
             if (basic == null) return;
 
-            if (basic.manoeuvreId == 1 && vehicle.intendedPathRenderer != null)
+            if (basic.manoeuvreId == 1 && vehicle.pathVisualizer != null)
             {
-                DrawOvertakeCurve(vehicle);
+                // Try to get real data first
+                List<TrajectoryPoint> extractedTrajectory = mcmData.GetTrajectory();
+                List<Vector3> pathPoints;
+
+                if (extractedTrajectory != null && extractedTrajectory.Count > 0)
+                {
+                    // If real future points exist, use them
+                    pathPoints = ExtractTrajectoryFromMcm(extractedTrajectory, vehicle);
+                }
+                else
+                {
+                    // If no future points exist in the JSON, fake the curve mathematically!
+                    pathPoints = GenerateProceduralOvertakeCurve(vehicle);
+                }
+
+                vehicle.pathVisualizer.DrawPath(pathPoints);
             }
-            else if (basic.manoeuvreId == 0 && vehicle.intendedPathRenderer != null)
+            else if (basic.manoeuvreId == 0 && vehicle.pathVisualizer != null)
             {
-                vehicle.intendedPathRenderer.positionCount = 0;
+                vehicle.pathVisualizer.ClearPath();
             }
         }
         catch { }
     }
 
-    void DrawOvertakeCurve(VehicleMapping vehicle)
+    List<Vector3> ExtractTrajectoryFromMcm(List<TrajectoryPoint> extractedTrajectory, VehicleMapping vehicle)
     {
-        int segments = 20;
-        vehicle.intendedPathRenderer.positionCount = segments + 1;
+        List<Vector3> unityPoints = new List<Vector3>();
+        foreach (var point in extractedTrajectory)
+        {
+            Vector3 localPos = ConvertGpsToUnityPosition(point.latitude, point.longitude);
+            
+            Vector3 worldPos = vehicle.vehicleTransform.parent != null 
+                ? vehicle.vehicleTransform.parent.TransformPoint(localPos) 
+                : localPos;
+
+            unityPoints.Add(worldPos);
+        }
+        return unityPoints;
+    }
+
+    // This mathematically generates the smooth curve based on your global settings
+    List<Vector3> GenerateProceduralOvertakeCurve(VehicleMapping vehicle)
+    {
+        List<Vector3> unityPoints = new List<Vector3>();
+        int segments = 30; // How smooth the curve is
 
         for (int i = 0; i <= segments; i++)
         {
             float t = (float)i / segments;
+            // SmoothStep math for a buttery S-curve lane change
             float smoothT = t * t * (3f - 2f * t);
 
             float forwardDistance = t * maneuverLength;
             float leftDistance = -smoothT * laneWidth; 
 
-            // Standard axes: X is Left, Y is Up (0.15f offset), Z is Forward
-            vehicle.intendedPathRenderer.SetPosition(i, new Vector3(leftDistance, 0.15f, forwardDistance));
+            // 1. Create the point relative to the car (X is left/right, Z is forward)
+            Vector3 localCurvePoint = new Vector3(leftDistance, 0f, forwardDistance);
+
+            // 2. Convert it into World Space based on exactly where the car is facing right now
+            Vector3 worldPos = vehicle.vehicleTransform.TransformPoint(localCurvePoint);
+            
+            unityPoints.Add(worldPos);
         }
+
+        return unityPoints;
     }
 
     Vector3 ConvertGpsToUnityPosition(double lat, double lon)

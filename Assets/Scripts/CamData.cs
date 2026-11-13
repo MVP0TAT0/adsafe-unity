@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 // --- CAM Data Structures ---
 [Serializable]
@@ -26,9 +27,26 @@ public class McmRoot {
     public McmFields fields;
     public BasicContainer basicContainer;
     public McmContainer mcmContainer;
+    
+    // In case the trajectory is stored at the root of the JSON
+    public List<TrajectoryPoint> trajectory; 
 
     public BasicContainer GetBasicContainer() {
         return fields?.payload?.basicContainer ?? basicContainer;
+    }
+
+    // Safely hunts down the trajectory array no matter where the JSON hides it
+    public List<TrajectoryPoint> GetTrajectory() {
+        if (trajectory != null && trajectory.Count > 0) 
+            return trajectory;
+        
+        if (fields?.payload?.mcmContainer?.vehicleManoeuvreContainer?.trajectory != null) 
+            return fields.payload.mcmContainer.vehicleManoeuvreContainer.trajectory;
+            
+        if (mcmContainer?.vehicleManoeuvreContainer?.trajectory != null) 
+            return mcmContainer.vehicleManoeuvreContainer.trajectory;
+            
+        return null;
     }
 }
 [Serializable]
@@ -53,4 +71,14 @@ public class ReferencePosition {
 [Serializable]
 public class McmContainer { public VehicleManoeuvreContainer vehicleManoeuvreContainer; }
 [Serializable]
-public class VehicleManoeuvreContainer { /* Additional MCM details if needed */ }
+public class VehicleManoeuvreContainer { 
+    // In case the trajectory is nested deeply following strict ETSI standards
+    public List<TrajectoryPoint> trajectory; 
+}
+
+// --- Shared Data Structures ---
+[Serializable]
+public class TrajectoryPoint {
+    public double latitude;
+    public double longitude;
+}

@@ -4,19 +4,29 @@ using UnityEngine.UI;
 
 public class OvertakingManager : MonoBehaviour
 {
-    [Header("UI Request Panel")]
+    [Header("Central Display UI")]
     public GameObject notificationPanel; 
     public Image timeoutFillImage;       
     public Button allowButton;
     public Button denyButton;
-
-    [Header("Feedback Panels")]
     public GameObject timeoutNotificationPanel; 
     public GameObject deniedNotificationPanel;  
-    public float feedbackDisplayDuration = 3.0f; 
+
+    [Header("Driver Display UI (Behind Wheel)")]
+    public GameObject driverNotificationPanel;
+    public Image driverTimeoutFillImage;
+    public GameObject driverTimeoutNotificationPanel;
+    public GameObject driverDeniedNotificationPanel;
+
+    [Header("Overtaking Visuals")]
+    [Tooltip("Drag the Arrow Canvas Image here. Make sure it is NOT a child of the Notification Panels.")]
+    public GameObject blinkingArrow;
+    [Tooltip("How fast the arrow blinks (lower is faster)")]
+    public float blinkSpeed = 0.5f;
 
     [Header("Negotiation Settings")]
     public float timeoutDuration = 5.0f; 
+    public float feedbackDisplayDuration = 3.0f; 
     
     [Tooltip("Seconds to wait before showing the notification. Adjust this to sync with the replay.py dataset.")]
     public float delayBeforeRequest = 10.0f; 
@@ -24,11 +34,8 @@ public class OvertakingManager : MonoBehaviour
     [Header("Camera Animation")]
     public Camera targetCamera;
     public float zoomOutFOV = 80f;
-    [Tooltip("How high the camera should move on the Y axis to look over the dashboard/seat.")]
     public float zoomOutLocalY = 3f; 
-    [Tooltip("How far back the camera should pull on the Z axis. Default is usually around -9.42.")]
     public float zoomOutLocalZ = -18f; 
-    [Tooltip("How much the camera should tilt up or down on the X axis when zoomed out.")]
     public float zoomOutLocalRotationX = 10f; 
     public float zoomTransitionSpeed = 5f;
 
@@ -40,11 +47,12 @@ public class OvertakingManager : MonoBehaviour
     private float timer;
     private bool isRequestActive = false;
     private Coroutine activeFeedbackCoroutine;
+    private Coroutine activeBlinkCoroutine;
 
     void Start()
     {
-        if (notificationPanel == null) Debug.LogWarning("Notification Panel is not assigned!");
-        if (timeoutFillImage == null) Debug.LogWarning("Timeout Fill Image is not assigned!");
+        if (notificationPanel == null) Debug.LogWarning("Central Notification Panel is not assigned!");
+        if (timeoutFillImage == null) Debug.LogWarning("Central Timeout Fill Image is not assigned!");
         
         if (targetCamera == null) 
         {
@@ -52,7 +60,6 @@ public class OvertakingManager : MonoBehaviour
         }
         else 
         {
-            // Remember the starting FOV, position, and rotation so we can always return to normal
             defaultFOV = targetCamera.fieldOfView; 
             defaultLocalPos = targetCamera.transform.localPosition;
             defaultLocalRot = targetCamera.transform.localRotation;
@@ -61,9 +68,16 @@ public class OvertakingManager : MonoBehaviour
         if (allowButton != null) allowButton.onClick.AddListener(OnAllowClicked);
         if (denyButton != null) denyButton.onClick.AddListener(OnDenyClicked);
 
+        // Hide all panels on startup
         if (timeoutNotificationPanel != null) timeoutNotificationPanel.SetActive(false);
         if (deniedNotificationPanel != null) deniedNotificationPanel.SetActive(false);
-        if (notificationPanel != null) notificationPanel.SetActive(false); // Start hidden
+        if (notificationPanel != null) notificationPanel.SetActive(false); 
+
+        if (driverTimeoutNotificationPanel != null) driverTimeoutNotificationPanel.SetActive(false);
+        if (driverDeniedNotificationPanel != null) driverDeniedNotificationPanel.SetActive(false);
+        if (driverNotificationPanel != null) driverNotificationPanel.SetActive(false); 
+        
+        if (blinkingArrow != null) blinkingArrow.SetActive(false);
 
         // Start the delayed trigger to sync with the dataset
         if (delayBeforeRequest > 0)
@@ -96,11 +110,10 @@ public class OvertakingManager : MonoBehaviour
         {
             timer -= Time.deltaTime;
 
-            if (timeoutFillImage != null)
-            {
-                float timePercentage = 1 - (timer / timeoutDuration);
-                timeoutFillImage.fillAmount = timePercentage;
-            }
+            float timePercentage = 1 - (timer / timeoutDuration);
+
+            if (timeoutFillImage != null) timeoutFillImage.fillAmount = timePercentage;
+            if (driverTimeoutFillImage != null) driverTimeoutFillImage.fillAmount = timePercentage;
 
             if (Input.GetKeyDown(KeyCode.Y) || Input.GetKeyDown(KeyCode.LeftArrow)) OnAllowClicked();
             else if (Input.GetKeyDown(KeyCode.N) || Input.GetKeyDown(KeyCode.RightArrow)) OnDenyClicked();
@@ -112,20 +125,35 @@ public class OvertakingManager : MonoBehaviour
     public void StartOvertakingRequest()
     {
         if (activeFeedbackCoroutine != null) StopCoroutine(activeFeedbackCoroutine);
+        
+        // Hide feedbacks
         if (timeoutNotificationPanel != null) timeoutNotificationPanel.SetActive(false);
         if (deniedNotificationPanel != null) deniedNotificationPanel.SetActive(false);
+        if (driverTimeoutNotificationPanel != null) driverTimeoutNotificationPanel.SetActive(false);
+        if (driverDeniedNotificationPanel != null) driverDeniedNotificationPanel.SetActive(false);
 
         isRequestActive = true;
         timer = timeoutDuration;
         
+        // Reset and show requests
         if (timeoutFillImage != null) timeoutFillImage.fillAmount = 0f;
+        if (driverTimeoutFillImage != null) driverTimeoutFillImage.fillAmount = 0f;
+        
         if (notificationPanel != null) notificationPanel.SetActive(true);
+        if (driverNotificationPanel != null) driverNotificationPanel.SetActive(true);
+
+        // Start Arrow Blinking
+        if (blinkingArrow != null)
+        {
+            blinkingArrow.SetActive(true);
+            if (activeBlinkCoroutine != null) StopCoroutine(activeBlinkCoroutine);
+            activeBlinkCoroutine = StartCoroutine(BlinkRoutine());
+        }
         
         // Trigger Zoom Out, Move, and Rotate
         if (targetCamera != null)
         {
             Vector3 targetPos = new Vector3(defaultLocalPos.x, zoomOutLocalY, zoomOutLocalZ);
-            // Create a new target rotation keeping the original Y and Z, but applying the new X tilt
             Quaternion targetRot = Quaternion.Euler(zoomOutLocalRotationX, defaultLocalRot.eulerAngles.y, defaultLocalRot.eulerAngles.z);
             TriggerCameraTransition(zoomOutFOV, targetPos, targetRot);
         }
@@ -136,29 +164,36 @@ public class OvertakingManager : MonoBehaviour
     public void OnAllowClicked()
     {
         if (!isRequestActive) return;
-        Debug.Log("Overtaking ALLOWED. Camera stays zoomed out.");
+        Debug.Log("Overtaking ALLOWED. Arrow continues blinking.");
+        
+        // Do NOT stop the arrow here. It will keep blinking automatically.
         EndRequest(false);
     }
 
     public void OnDenyClicked()
     {
         if (!isRequestActive) return;
-        Debug.Log("Overtaking DENIED. Camera zooms back in.");
+        Debug.Log("Overtaking DENIED. Arrow hidden.");
+        
+        StopBlinkingArrow();
         EndRequest(true);
-        ShowFeedback(deniedNotificationPanel);
+        ShowFeedback(deniedNotificationPanel, driverDeniedNotificationPanel);
     }
 
     private void OnTimeout()
     {
-        Debug.Log("Request TIMED OUT. Camera zooms back in.");
+        Debug.Log("Request TIMED OUT. Arrow hidden.");
+        
+        StopBlinkingArrow();
         EndRequest(true);
-        ShowFeedback(timeoutNotificationPanel);
+        ShowFeedback(timeoutNotificationPanel, driverTimeoutNotificationPanel);
     }
 
     private void EndRequest(bool resetCamera)
     {
         isRequestActive = false;
         if (notificationPanel != null) notificationPanel.SetActive(false); 
+        if (driverNotificationPanel != null) driverNotificationPanel.SetActive(false);
         
         if (resetCamera)
         {
@@ -166,18 +201,49 @@ public class OvertakingManager : MonoBehaviour
         }
     }
 
-    private void ShowFeedback(GameObject panel)
+    private void StopBlinkingArrow()
     {
-        if (panel == null) return;
-        if (activeFeedbackCoroutine != null) StopCoroutine(activeFeedbackCoroutine);
-        activeFeedbackCoroutine = StartCoroutine(ShowFeedbackRoutine(panel));
+        if (activeBlinkCoroutine != null)
+        {
+            StopCoroutine(activeBlinkCoroutine);
+            activeBlinkCoroutine = null;
+        }
+        if (blinkingArrow != null) blinkingArrow.SetActive(false);
     }
 
-    private IEnumerator ShowFeedbackRoutine(GameObject panelToDisplay)
+    private IEnumerator BlinkRoutine()
     {
-        panelToDisplay.SetActive(true);
+        // Automatically adds a CanvasGroup to the arrow if it doesn't have one, 
+        // which allows us to safely fade its transparency.
+        CanvasGroup arrowGroup = blinkingArrow.GetComponent<CanvasGroup>();
+        if (arrowGroup == null) arrowGroup = blinkingArrow.AddComponent<CanvasGroup>();
+
+        float t = 0f;
+        while (true)
+        {
+            t += Time.deltaTime / blinkSpeed;
+            // Uses a Cosine wave for a buttery smooth fade in and fade out
+            arrowGroup.alpha = (Mathf.Cos(t * Mathf.PI * 2f) * 0.5f) + 0.5f;
+            yield return null;
+        }
+    }
+
+    private void ShowFeedback(GameObject centralPanel, GameObject driverPanel)
+    {
+        if (activeFeedbackCoroutine != null) StopCoroutine(activeFeedbackCoroutine);
+        activeFeedbackCoroutine = StartCoroutine(ShowFeedbackRoutine(centralPanel, driverPanel));
+    }
+
+    private IEnumerator ShowFeedbackRoutine(GameObject centralPanel, GameObject driverPanel)
+    {
+        if (centralPanel != null) centralPanel.SetActive(true);
+        if (driverPanel != null) driverPanel.SetActive(true);
+
         yield return new WaitForSeconds(feedbackDisplayDuration);
-        panelToDisplay.SetActive(false);
+
+        if (centralPanel != null) centralPanel.SetActive(false);
+        if (driverPanel != null) driverPanel.SetActive(false);
+        
         activeFeedbackCoroutine = null;
     }
 
@@ -190,7 +256,6 @@ public class OvertakingManager : MonoBehaviour
 
     private IEnumerator SmoothCameraRoutine(float targetFOV, Vector3 targetPos, Quaternion targetRot)
     {
-        // Added Quaternion.Angle to ensure the loop continues until the rotation finishes
         while (Mathf.Abs(targetCamera.fieldOfView - targetFOV) > 0.1f || 
                Vector3.Distance(targetCamera.transform.localPosition, targetPos) > 0.01f ||
                Quaternion.Angle(targetCamera.transform.localRotation, targetRot) > 0.1f)
